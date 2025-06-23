@@ -1,0 +1,2133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drone Interceptor</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
+        /* General body styles */
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start; /* Align content to the top initially */
+            align-items: center;
+            min-height: 100vh; /* Ensures content takes at least full viewport height */
+            background-color: #2c3e50; /* Dark blue-gray */
+            color: #ecf0f1; /* Light gray text */
+            overflow-x: hidden; /* Prevent horizontal scroll */
+            padding: 20px; /* Base padding for the body */
+            box-sizing: border-box;
+            line-height: 1.6; /* Improved readability */
+        }
+
+        .game-container {
+            background-color: #34495e; /* Slightly lighter blue-gray */
+            border-radius: 15px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+            overflow: hidden; /* Keep internal content within rounded borders */
+            width: 100%;
+            max-width: 800px; /* Max width for desktop screens - this is our reference width */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px; /* Internal padding for the game container */
+            box-sizing: border-box;
+            position: relative;
+            margin-bottom: 20px; /* Space below the container */
+        }
+
+        canvas {
+            background-color: #1e2b38; /* Darker background for game area */
+            display: block;
+            border-radius: 10px;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            /* Height is set dynamically by JavaScript in initGame() */
+            touch-action: none; /* Prevent browser default touch actions like pull-to-refresh */
+        }
+
+        .game-info {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            padding: 10px 0;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+
+        .controls {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+            flex-wrap: wrap; /* Allow buttons to wrap on small screens */
+        }
+
+        button {
+            background: linear-gradient(145deg, #27ae60, #229954); /* Green gradient */
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            flex-grow: 1; /* Allow buttons to grow to fill space */
+            max-width: 180px; /* Max width for individual buttons */
+            -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
+        }
+
+        button:hover {
+            background: linear-gradient(145deg, #2ecc71, #27ae60);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .game-message {
+            position: absolute; /* Overlay effect */
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border-radius: 15px;
+            text-align: center;
+            transition: opacity 0.5s ease;
+            opacity: 0;
+            visibility: hidden;
+            z-index: 10;
+        }
+
+        .game-message.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .message-content {
+            background-color: #2c3e50;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+            max-width: 90%; /* Ensure it fits on smaller screens */
+            box-sizing: border-box;
+            overflow-y: auto; /* Allow scrolling for long messages on small screens */
+            max-height: 90vh; /* Limit message content height to viewport */
+        }
+
+        /* Titles within the message content (intro and game over) */
+        .message-content h2 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            color: #e74c3c; /* Force red color for all H2s in message-content */
+            text-shadow: 0 4px 8px rgba(0, 0, 0, 0.4); /* Subtle shadow for depth */
+        }
+
+        .message-content h3 {
+            font-size: 1.5em;
+            margin-top: 0;
+            color: #bdc3c7;
+        }
+
+        .message-content p {
+            font-size: 1.1em; /* Slightly reduced for better fit on mobile */
+            margin-bottom: 20px;
+        }
+
+        .message-content ul {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+            text-align: left;
+            width: 100%;
+            max-width: 350px; /* Limit width for readability */
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .message-content ul li {
+            margin-bottom: 10px;
+            font-size: 1em; /* Slightly reduced for better fit on mobile */
+            display: flex;
+            align-items: flex-start; /* Align items to the start for multi-line text */
+        }
+
+        /* Styles for emojis if placed directly */
+        .message-content ul li .emoji {
+            margin-right: 10px;
+            font-size: 1.2em; /* Slightly larger for visibility */
+            line-height: 1; /* Align vertically */
+            vertical-align: middle;
+            text-shadow: 0 0 3px rgba(0,0,0,0.5); /* Optional: add a subtle shadow for contrast */
+        }
+
+        .message-content button {
+            background: linear-gradient(145deg, #3498db, #2980b9); /* Blue gradient */
+            margin-top: 10px; /* Space between buttons */
+        }
+
+        .message-content button:hover {
+            background: linear-gradient(145deg, #3cb0fd, #3498db);
+        }
+
+        .visit-button {
+            background: linear-gradient(145deg, #f39c12, #e67e22) !important; /* Orange gradient */
+        }
+
+        .visit-button:hover {
+            background: linear-gradient(145deg, #e67e22, #d35400) !important;
+        }
+
+        .share-button {
+            background: linear-gradient(145deg, #9b59b6, #8e44ad) !important; /* Purple gradient */
+        }
+
+        .share-button:hover {
+            background: linear-gradient(145deg, #b072d1, #9b59b6) !important;
+        }
+
+
+        /* Mobile-specific controls (Joystick and separate shoot button) */
+        .mobile-controls {
+            display: none; /* Hidden by default, shown only on small screens */
+            width: 100%;
+            justify-content: space-around;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        .joystick-area {
+            width: 120px;
+            height: 120px;
+            position: relative;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            touch-action: none; /* Prevent scrolling/zooming */
+        }
+
+        .joystick-base {
+            width: 80px;
+            height: 80px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            position: absolute;
+        }
+
+        .joystick-thumb {
+            width: 40px;
+            height: 40px;
+            background-color: #3498db; /* Blue for thumb */
+            border-radius: 50%;
+            position: absolute;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            transition: transform 0.05s ease-out; /* Smooth movement */
+        }
+
+        .mobile-shoot-btn {
+            background: linear-gradient(145deg, #e74c3c, #c0392b); /* Red gradient for shoot button */
+            padding: 15px 30px;
+            font-size: 1.2em;
+            width: auto; /* Override flex-grow */
+            max-width: 200px;
+        }
+
+        .mobile-shoot-btn:hover {
+            background: linear-gradient(145deg, #ff6b5a, #e74c3c);
+        }
+
+        /* High Scores section */
+        .high-scores-container {
+            background-color: #34495e;
+            border-radius: 15px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+            padding: 20px;
+            margin-top: 20px;
+            width: 100%;
+            max-width: 800px;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        .high-scores-container h2 {
+            color: #2ecc71; /* Green color for high scores title */
+            font-size: 2em;
+            margin-bottom: 15px;
+        }
+
+        .high-scores-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            font-size: 1.1em;
+        }
+
+        .high-scores-list li {
+            background-color: #2c3e50;
+            margin-bottom: 8px;
+            padding: 10px 15px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .high-scores-list li:nth-child(odd) {
+            background-color: #263442;
+        }
+
+        .high-scores-list li span {
+            display: inline-block;
+            font-weight: bold;
+        }
+
+        .high-scores-list li .score-rank {
+            color: #f39c12; /* Orange for rank */
+            margin-right: 10px;
+        }
+
+        .high-scores-list li .score-name {
+            flex-grow: 1;
+            text-align: left;
+            color: #ecf0f1;
+        }
+
+        .high-scores-list li .score-value {
+            color: #2ecc71; /* Green for score */
+        }
+
+        .high-scores-loading {
+            padding: 15px;
+            color: #bdc3c7;
+            font-style: italic;
+        }
+
+        /* Game Over message input and submit button styling */
+        .game-over-input-group {
+            margin-top: 20px;
+            margin-bottom: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        .game-over-input-group label {
+            margin-bottom: 8px;
+            font-size: 1.1em;
+            color: #bdc3c7;
+        }
+
+        .game-over-input-group input[type="text"] {
+            width: 80%;
+            max-width: 250px;
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid #7f8c8d;
+            background-color: #1e2b38;
+            color: #ecf0f1;
+            font-size: 1em;
+            box-sizing: border-box;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+
+        .game-over-input-group input[type="text"]:focus {
+            border-color: #3498db;
+        }
+
+        .game-over-input-group button {
+            margin-top: 15px;
+            background: linear-gradient(145deg, #2ecc71, #27ae60);
+            padding: 12px 30px;
+        }
+
+        .game-over-input-group button:hover {
+            background: linear-gradient(145deg, #3cb0fd, #3498db);
+        }
+
+        .submit-status-message {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #e74c3c;
+        }
+
+        /* Game Countdown */
+        .game-countdown {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 15px;
+            text-align: center;
+            opacity: 0;
+            visibility: hidden;
+            z-index: 20; /* Above game messages */
+            transition: opacity 0.3s ease;
+        }
+
+        .game-countdown.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .countdown-number {
+            font-size: 8em;
+            font-weight: bold;
+            color: #2ecc71; /* Green */
+            text-shadow: 0 0 20px rgba(46, 204, 113, 0.8);
+            animation: countdownPop 0.8s ease-out forwards;
+        }
+
+        @keyframes countdownPop {
+            0% {
+                transform: scale(0.5);
+                opacity: 0;
+            }
+            70% {
+                transform: scale(1.1);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        
+        .power-up-icon {
+            position: absolute;
+            top: -50px; /* Start above canvas */
+            font-size: 2em; /* Scaled later in JS */
+            color: #f39c12; /* Orange for power-ups */
+            text-shadow: 0 0 5px rgba(243, 156, 18, 0.7);
+            animation: pulse 1s infinite alternate;
+        }
+
+        @keyframes pulse {
+            from {
+                transform: scale(1);
+                opacity: 1;
+            }
+            to {
+                transform: scale(1.1);
+                opacity: 0.8;
+            }
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .game-container {
+                padding: 15px;
+            }
+
+            .game-info {
+                font-size: 1em;
+            }
+
+            /* Hide desktop controls on smaller screens */
+            .controls {
+                display: none;
+            }
+
+            /* Show mobile controls */
+            .mobile-controls {
+                display: flex;
+            }
+
+            .message-content h2 {
+                font-size: 2em;
+            }
+
+            .message-content h3 {
+                font-size: 1.2em;
+            }
+
+            .message-content p {
+                font-size: 0.95em;
+            }
+
+            .message-content ul li {
+                font-size: 0.9em;
+            }
+
+            .message-content button {
+                padding: 10px 20px;
+                font-size: 1em;
+            }
+
+            .high-scores-container {
+                padding: 15px;
+            }
+
+            .high-scores-container h2 {
+                font-size: 1.8em;
+            }
+
+            .high-scores-list li {
+                font-size: 0.95em;
+                padding: 8px 10px;
+            }
+
+            .game-over-input-group input[type="text"] {
+                width: 90%;
+            }
+            .countdown-number {
+                font-size: 6em;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+
+            .game-container {
+                border-radius: 10px;
+                padding: 10px;
+            }
+
+            .game-info {
+                font-size: 0.9em;
+                padding: 5px 0;
+            }
+
+            .joystick-area {
+                width: 100px;
+                height: 100px;
+            }
+
+            .joystick-base {
+                width: 70px;
+                height: 70px;
+            }
+
+            .joystick-thumb {
+                width: 35px;
+                height: 35px;
+            }
+
+            .mobile-shoot-btn {
+                padding: 12px 25px;
+                font-size: 1.1em;
+            }
+
+            .message-content {
+                padding: 20px;
+            }
+
+            .message-content h2 {
+                font-size: 1.8em;
+            }
+
+            .message-content h3 {
+                font-size: 1em;
+            }
+
+            .message-content p {
+                font-size: 0.85em;
+            }
+
+            .message-content ul li {
+                font-size: 0.8em;
+            }
+
+            .high-scores-container {
+                padding: 10px;
+            }
+
+            .high-scores-container h2 {
+                font-size: 1.6em;
+            }
+
+            .high-scores-list li {
+                font-size: 0.9em;
+                padding: 6px 8px;
+            }
+
+            .game-over-input-group button {
+                padding: 10px 25px;
+                font-size: 1em;
+            }
+            .countdown-number {
+                font-size: 4em;
+            }
+        }
+
+        /* Drone and Net SVGs (for icons instead of simple shapes) */
+        .player-net-gun {
+            font-size: 30px; /* Adjust size as needed */
+            color: #f1c40f; /* Yellow */
+        }
+
+        .net-icon {
+            font-size: 15px; /* Adjust size as needed */
+            color: #3498db; /* Blue */
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-info">
+            <div id="score">Score: 0</div>
+            <div id="lives">Tanks: 10</div>
+        </div>
+        <canvas id="gameCanvas"></canvas>
+
+        <div class="controls">
+            <button id="moveLeftBtn"><i class="fas fa-arrow-left"></i> Move Left</button>
+            <button id="shootBtn"><i class="fas fa-crosshairs"></i> Shoot Net</button>
+            <button id="moveRightBtn">Move Right <i class="fas fa-arrow-right"></i></button>
+        </div>
+
+        <div class="mobile-controls">
+            <div id="joystick-area" class="joystick-area">
+                <div id="joystick-base" class="joystick-base"></div>
+                <div id="joystick-thumb" class="joystick-thumb"></div>
+            </div>
+            <button id="mobileShootBtn" class="mobile-shoot-btn"><i class="fas fa-crosshairs"></i> Shoot</button>
+        </div>
+
+        <div id="gameCountdown" class="game-countdown">
+            <span id="countdownNumber" class="countdown-number"></span>
+        </div>
+
+        <div id="gameStartMessage" class="game-message active">
+            <div class="message-content">
+                <h2>Drone Interceptor</h2>
+                <h3>Take aim. Fire your net. Stop the swarm.</h3>
+                <p>In Drone Interceptor, rogue drones are swarming the battlefield, and it’s up to you to take them down before they destroy your military tanks. Armed with a powerful net launcher, you’ll shoot drones right out of the sky, disabling them mid-air with precision and speed.</p>
+                <ul>
+                    <li><span class="emoji">🛡️</span> Protect your tanks.</li>
+                    <li><span class="emoji">🎯</span> Hone your aim.</li>
+                    <li><span class="emoji">🕹️</span> Use arrow keys/buttons/joystick for movement. Spacebar/Shoot for nets.</li>
+                </ul>
+                <p>Every drone you drop is one step closer to victory. How many can you stop before they break through?</p>
+                <button id="startGameBtn">Start Game</button>
+                <button id="visitSolidUAVsIntroBtn" class="visit-button">SOLID UAVS</button>
+                <button id="challengeFriendIntroBtn" class="share-button"><i class="fas fa-user-friends"></i> Challenge a Friend</button>
+            </div>
+        </div>
+
+        <div id="gameOverMessage" class="game-message">
+            <div class="message-content">
+                <h2>Game Over!</h2>
+                <p id="finalScore"></p>
+                <div class="game-over-input-group">
+                    <label for="playerNameInput">Enter your name for the High Score:</label>
+                    <input type="text" id="playerNameInput" maxlength="15" placeholder="Your Name">
+                    <button id="submitScoreBtn">Submit Score</button>
+                    <p id="submitStatus" class="submit-status-message"></p>
+                </div>
+                <button id="restartGameBtn">Play Again</button>
+                <button id="visitSolidUAVsGameOverBtn" class="visit-button">SOLID UAVS</button>
+                <button id="challengeFriendGameOverBtn" class="share-button"><i class="fas fa-user-friends"></i> Challenge a Friend</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="high-scores-container">
+        <h2>Top Interceptors</h2>
+        <div id="highScoresLoading" class="high-scores-loading">Loading high scores...</div>
+        <ul id="highScoresList" class="high-scores-list">
+            </ul>
+    </div>
+
+    <script type="module">
+        // Canvas and game elements
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+        const livesDisplay = document.getElementById('lives');
+        const gameStartMessage = document.getElementById('gameStartMessage');
+        const gameOverMessage = document.getElementById('gameOverMessage');
+        const startGameBtn = document.getElementById('startGameBtn');
+        const restartGameBtn = document.getElementById('restartGameBtn');
+        const finalScoreDisplay = document.getElementById('finalScore');
+        const moveLeftBtn = document.getElementById('moveLeftBtn');
+        const shootBtn = document.getElementById('shootBtn');
+        const moveRightBtn = document.getElementById('moveRightBtn');
+        const gameCountdown = document.getElementById('gameCountdown');
+        const countdownNumber = document.getElementById('countdownNumber');
+
+        const visitSolidUAVsIntroBtn = document.getElementById('visitSolidUAVsIntroBtn');
+        const visitSolidUAVsGameOverBtn = document.getElementById('visitSolidUAVsGameOverBtn');
+
+        // Changed share buttons to challenge buttons
+        const challengeFriendIntroBtn = document.getElementById('challengeFriendIntroBtn');
+        const challengeFriendGameOverBtn = document.getElementById('challengeFriendGameOverBtn');
+
+        // Mobile controls references
+        let joystickArea;
+        let joystickBase;
+        let joystickThumb;
+        let mobileShootBtn;
+
+        // High score elements
+        const highScoresList = document.getElementById('highScoresList');
+        const highScoresLoading = document.getElementById('highScoresLoading');
+        const playerNameInput = document.getElementById('playerNameInput');
+        const submitScoreBtn = document.getElementById('submitScoreBtn');
+        const submitStatus = document.getElementById('submitStatus');
+
+        // --- Google Apps Script Web App URL ---
+        // IMPORTANT: Updated to the new URL you provided
+        const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxeMKZKpPujAXF8rmwLDrF-8bX_yrvzVG08jmWfddd5z8rSnJdyUk-AJ2sryVlltMHN/exec';
+
+        // --- Base Game Constants (unscaled) ---
+        // We'll use the max-width of the game-container (800px) as our reference scale.
+        const BASE_CANVAS_WIDTH = 800;
+        const BASE_PLAYER_WIDTH = 60;
+        const BASE_PLAYER_HEIGHT = 20;
+        const BASE_PLAYER_SPEED = 7;
+
+        const BASE_NET_WIDTH = 15;
+        const BASE_NET_HEIGHT = 30;
+        const BASE_NET_SPEED = 10;
+        const NET_EXPANSION_FACTOR = 0.25; // This is a ratio, so it remains unscaled
+
+        const BASE_DRONE_WIDTH = 35;
+        const BASE_DRONE_HEIGHT = 25;
+        const BASE_DRONE_SPEED_MIN = 1;
+        const BASE_DRONE_SPEED_MAX = 4;
+        const DRONE_SPEED_INCREMENT_PER_SCORE = 0.005; // Ratio, unscaled
+        const DRONE_HORIZONTAL_MOVE_CHANCE = 0.3; // Ratio, unscaled
+        const DRONE_HORIZONTAL_SPEED_MIN_FACTOR = 0.5; // Ratio, unscaled
+        const DRONE_HORIZONTAL_SPEED_MAX_FACTOR = 1.5; // Ratio, unscaled
+
+        const NUM_TANKS = 10;
+        const BASE_TANK_WIDTH = 50;
+        const BASE_TANK_HEIGHT = 30;
+        const BASE_TANK_BOTTOM_PADDING = 10; // Space between tanks and canvas bottom
+        const PLAYER_ABOVE_TANKS_OFFSET = 70; // New constant for additional offset for the player
+
+        const BASE_TRACK_WIDTH = 8;
+        const BASE_TRACK_OFFSET = 2;
+        const BASE_TRACK_ANIMATION_SPEED = 0.22;
+        const BASE_TANK_MOVE_SPEED_MIN = 0.242;
+        const BASE_TANK_MOVE_SPEED_MAX = 0.605;
+
+        const DIFFICULTY_RAMP_UP_DURATION = 25000; // ms
+        const MAX_DRONE_SPEED_INCREASE_FACTOR = 1.75; // Ratio, unscaled
+        const MIN_DRONE_SPAWN_INTERVAL_FACTOR = 0.5; // Ratio, unscaled
+
+        // Particle Effects (scale these too)
+        const BASE_SMOKE_DURATION = 1500;
+        const BASE_SMOKE_INITIAL_SIZE = 15;
+        const BASE_SMOKE_MAX_SIZE = 70;
+        const BASE_SMOKE_RISE_SPEED = 0.05;
+
+        const BASE_SPARK_DURATION = 400;
+        const BASE_SPARK_COUNT = 80;
+        const BASE_SPARK_SPEED_MAX = 15;
+        const BASE_SPARK_SIZE = 2;
+
+        const BASE_BROKEN_TRACK_DURATION = 5000;
+        const BASE_BROKEN_TRACK_COUNT = 4;
+        const BASE_BROKEN_TRACK_SPEED_MAX = 3;
+        const BASE_BROKEN_TRACK_ROTATION_SPEED = 0.1;
+
+        const BASE_TURRET_LIFETIME = 3000;
+        const BASE_TURRET_INITIAL_VELOCITY_Y = -0.7;
+        const BASE_TURRET_GRAVITY = 0.01;
+        const BASE_TURRET_INITIAL_VELOCITY_X_MAX = 0.5;
+        const BASE_TURRET_ROTATION_SPEED = 0.02; // Renamed to BASE_ for consistency and to avoid redeclaration
+
+        // New constant for hit effect
+        const DRONE_HIT_EFFECT_DURATION = 150; // milliseconds
+
+        // Power-up constants
+        const POWER_UP_DURATION = 5000; // 5 seconds
+        const POWER_UP_SPAWN_CHANCE = 0.1; // 10% chance per drone hit
+        const POWER_UP_TYPES = {
+            NET_SPREAD: 'net_spread',
+        };
+        const POWER_UP_FALL_SPEED = 2; // Speed at which power-up falls (scaled later)
+        const POWER_UP_SIZE = 25; // Base size of the power-up icon (scaled later)
+
+        // Dynamic game variables (will be scaled)
+        let scaleFactor = 1;
+
+        let player = {
+            x: 0,
+            y: 0,
+            width: BASE_PLAYER_WIDTH,
+            height: BASE_PLAYER_HEIGHT,
+            speed: BASE_PLAYER_SPEED,
+            dx: 0 // Delta x for movement
+        };
+
+        let nets = [];
+        let netSpeed;
+        let netWidth;
+        let netHeight;
+        let netSpreadActive = false; // New: state for net spread power-up
+        let netSpreadEndTime = 0; // New: timestamp when net spread ends
+
+        let drones = [];
+        let droneWidth;
+        let droneHeight;
+        let droneSpeedMin;
+        let droneSpeedMax;
+        let droneSpawnInterval = 1000; // This will be dynamic based on score/difficulty
+        let lastDroneSpawnTime = 0;
+        let propellerRotation = 0; // For drone propeller animation
+
+        let tanks = []; // Array to hold tank objects
+        let tankWidth;
+        let tankHeight;
+        let tanksRemaining = NUM_TANKS; // Lives are now represented by tanks
+
+        let score = 0;
+        let gameRunning = false;
+        let animationFrameId;
+
+        let trackWidth;
+        let trackOffset;
+        let tanksAreMovingIndependently = false; // Flag to trigger individual tank movement
+        let trackAnimationOffset = 0; // Offset to animate the track segments
+        let trackAnimationSpeed;
+
+        let lastTankSurvivedTime = 0; // Timestamp when tanksRemaining becomes 1
+
+        let activeSmokePlumes = []; // Array to hold active smoke plumes
+        let SMOKE_DURATION;
+        let SMOKE_INITIAL_SIZE;
+        let SMOKE_MAX_SIZE;
+        let SMOKE_RISE_SPEED;
+
+        let activeSparks = [];
+        let SPARK_DURATION;
+        let SPARK_COUNT;
+        let SPARK_SPEED_MAX;
+        let SPARK_SIZE;
+
+        let brokenTrackPieces = [];
+        let BROKEN_TRACK_DURATION;
+        let BROKEN_TRACK_COUNT;
+        let BROKEN_TRACK_SPEED_MAX;
+        let BROKEN_TRACK_ROTATION_SPEED;
+
+        let activeTurrets = [];
+        let TURRET_LIFETIME;
+        let TURRET_INITIAL_VELOCITY_Y;
+        let TURRET_GRAVITY;
+        let TURRET_INITIAL_VELOCITY_X_MAX;
+        let TURRET_ROTATION_SPEED; // Declared as let here
+
+        let powerUps = []; // Array to hold active power-ups
+        let powerUpFallSpeed;
+        let powerUpSize;
+
+        // Joystick variables
+        let joystickActive = false;
+        let currentJoystickTouchId = null;
+        let joystickCenterX = 0;
+        let joystickCenterY = 0;
+        let joystickRadius = 0;
+
+        // --- Game Initialization and Reset ---
+        async function initGame() {
+            // Get global element references that are dynamically added to the DOM.
+            joystickArea = document.getElementById('joystick-area');
+            joystickBase = document.getElementById('joystick-base');
+            joystickThumb = document.getElementById('joystick-thumb');
+            mobileShootBtn = document.getElementById('mobileShootBtn');
+
+            // Set canvas width based on its parent's current width
+            canvas.width = canvas.offsetWidth;
+            scaleFactor = canvas.width / BASE_CANVAS_WIDTH;
+
+            // Apply scaling to all game element dimensions and speeds
+            player.width = BASE_PLAYER_WIDTH * scaleFactor;
+            player.height = BASE_PLAYER_HEIGHT * scaleFactor;
+            player.speed = BASE_PLAYER_SPEED * scaleFactor;
+
+            netWidth = BASE_NET_WIDTH * scaleFactor;
+            netHeight = BASE_NET_HEIGHT * scaleFactor;
+            netSpeed = BASE_NET_SPEED * scaleFactor;
+
+            droneWidth = BASE_DRONE_WIDTH * scaleFactor;
+            droneHeight = BASE_DRONE_HEIGHT * scaleFactor;
+            droneSpeedMin = BASE_DRONE_SPEED_MIN * scaleFactor;
+            droneSpeedMax = BASE_DRONE_SPEED_MAX * scaleFactor;
+            
+            tankWidth = BASE_TANK_WIDTH * scaleFactor;
+            tankHeight = BASE_TANK_HEIGHT * scaleFactor;
+            
+            trackWidth = BASE_TRACK_WIDTH * scaleFactor;
+            trackOffset = BASE_TRACK_OFFSET * scaleFactor;
+            trackAnimationSpeed = BASE_TRACK_ANIMATION_SPEED * scaleFactor;
+
+            SMOKE_DURATION = BASE_SMOKE_DURATION; // Duration in ms, doesn't scale
+            SMOKE_INITIAL_SIZE = BASE_SMOKE_INITIAL_SIZE * scaleFactor;
+            SMOKE_MAX_SIZE = BASE_SMOKE_MAX_SIZE * scaleFactor;
+            SMOKE_RISE_SPEED = BASE_SMOKE_RISE_SPEED * scaleFactor;
+
+            SPARK_DURATION = BASE_SPARK_DURATION; // Duration in ms, doesn't scale
+            SPARK_COUNT = BASE_SPARK_COUNT; // Count, doesn't scale
+            SPARK_SPEED_MAX = BASE_SPARK_SPEED_MAX * scaleFactor;
+            SPARK_SIZE = BASE_SPARK_SIZE * scaleFactor;
+
+            BROKEN_TRACK_DURATION = BASE_BROKEN_TRACK_DURATION; // Duration, doesn't scale
+            BROKEN_TRACK_COUNT = BASE_BROKEN_TRACK_COUNT; // Count, doesn't scale
+            BROKEN_TRACK_SPEED_MAX = BASE_BROKEN_TRACK_SPEED_MAX * scaleFactor;
+            BROKEN_TRACK_ROTATION_SPEED = BASE_BROKEN_TRACK_ROTATION_SPEED; // Angle speed, doesn't need scaling
+            
+            TURRET_LIFETIME = BASE_TURRET_LIFETIME; // Duration, doesn't scale
+            TURRET_INITIAL_VELOCITY_Y = BASE_TURRET_INITIAL_VELOCITY_Y * scaleFactor;
+            TURRET_GRAVITY = BASE_TURRET_GRAVITY * scaleFactor;
+            TURRET_INITIAL_VELOCITY_X_MAX = BASE_TURRET_INITIAL_VELOCITY_X_MAX * scaleFactor;
+            TURRET_ROTATION_SPEED = BASE_TURRET_ROTATION_SPEED; // Assigned value here
+            
+            powerUpFallSpeed = POWER_UP_FALL_SPEED * scaleFactor;
+            powerUpSize = POWER_UP_SIZE * scaleFactor;
+
+            const gameContainer = document.querySelector('.game-container');
+            const gameInfoDiv = document.querySelector('.game-info');
+            const controlsDiv = document.querySelector('.controls');
+            const mobileControlsDiv = document.querySelector('.mobile-controls');
+
+            const containerStyle = getComputedStyle(gameContainer);
+            const containerPaddingTop = parseFloat(containerStyle.paddingTop);
+            const containerPaddingBottom = parseFloat(containerStyle.paddingBottom);
+            const containerMarginBottom = parseFloat(containerStyle.marginBottom);
+
+            // Calculate total fixed vertical space occupied by other elements
+            let totalFixedVerticalSpace = gameInfoDiv.offsetHeight + containerPaddingTop + containerPaddingBottom + containerMarginBottom;
+
+            // Conditionally add height of desktop or mobile controls based on which is displayed
+            if (getComputedStyle(controlsDiv).display !== 'none') {
+                totalFixedVerticalSpace += controlsDiv.offsetHeight;
+            } else if (getComputedStyle(mobileControlsDiv).display !== 'none') {
+                totalFixedVerticalSpace += mobileControlsDiv.offsetHeight;
+            }
+
+            totalFixedVerticalSpace += parseFloat(getComputedStyle(document.body).paddingTop || 0) + parseFloat(getComputedStyle(document.body).paddingBottom || 0);
+
+            const buffer = 20 * scaleFactor; // Scale the buffer too
+            let availableHeightForCanvas = window.innerHeight - totalFixedVerticalSpace - buffer;
+
+            const minCanvasHeight = 400; // Minimum desired canvas height
+            canvas.height = Math.max(minCanvasHeight, availableHeightForCanvas);
+
+
+            // Adjust max-height for message content dynamically based on available height
+            const viewportHeight = window.innerHeight;
+            const messageContentMaxHeight = viewportHeight * 0.9;
+            if (gameStartMessage && gameStartMessage.querySelector('.message-content')) {
+                gameStartMessage.querySelector('.message-content').style.maxHeight = `${messageContentMaxHeight}px`;
+            }
+            if (gameOverMessage && gameOverMessage.querySelector('.message-content')) {
+                gameOverMessage.querySelector('.message-content').style.maxHeight = `${messageContentMaxHeight}px`;
+            }
+
+            player.x = (canvas.width / 2) - (player.width / 2);
+            // Player Y position: above tanks with an additional offset
+            player.y = canvas.height - player.height - tankHeight - (BASE_TANK_BOTTOM_PADDING * scaleFactor) - (PLAYER_ABOVE_TANKS_OFFSET * scaleFactor);
+
+            nets = [];
+            drones = [];
+            powerUps = []; // Clear power-ups
+            netSpreadActive = false; // Reset power-up state
+            netSpreadEndTime = 0; // Reset power-up timer
+
+            score = 0;
+            tanksRemaining = NUM_TANKS;
+            updateScoreAndLives();
+            lastDroneSpawnTime = Date.now();
+            gameOverMessage.classList.remove('active');
+            gameStartMessage.classList.add('active');
+            gameCountdown.classList.remove('active'); // Hide countdown
+
+            gameRunning = false;
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+
+            tanksAreMovingIndependently = false;
+            trackAnimationOffset = 0;
+            lastTankSurvivedTime = 0;
+            activeSmokePlumes = [];
+            activeSparks = [];
+            activeTurrets = [];
+            brokenTrackPieces = [];
+
+            // Initialize tanks with scaled dimensions and spacing
+            tanks = [];
+            const totalTanksWidth = NUM_TANKS * tankWidth;
+            const availableWidthForTanks = canvas.width;
+            // Calculate spacing dynamically based on current canvas width and scaled tank width
+            const tankSpacing = (availableWidthForTanks - totalTanksWidth) / (NUM_TANKS + 1);
+            let currentTankX = tankSpacing;
+            for (let i = 0; i < NUM_TANKS; i++) {
+                tanks.push({
+                    x: currentTankX,
+                    y: canvas.height - tankHeight - (BASE_TANK_BOTTOM_PADDING * scaleFactor) + (BASE_TANK_BOTTOM_PADDING * scaleFactor * 0.1), // Slightly adjust Y to match original rendering
+                    width: tankWidth,
+                    height: tankHeight,
+                    intact: true,
+                    dx: 0
+                });
+                currentTankX += tankWidth + tankSpacing;
+            }
+
+            // Initialize joystick properties after elements are ensured to exist
+            if (joystickBase && joystickThumb) {
+                const baseRect = joystickBase.getBoundingClientRect();
+                joystickCenterX = baseRect.left + baseRect.width / 2;
+                joystickCenterY = baseRect.top + baseRect.height / 2;
+                joystickRadius = baseRect.width / 2;
+                // Reset joystick thumb position
+                joystickThumb.style.transform = `translate(0, 0)`;
+            }
+            
+            // Clear any previous submit status messages
+            submitStatus.textContent = '';
+            // Reset submit button state
+            submitScoreBtn.disabled = false;
+            submitScoreBtn.textContent = 'Submit Score';
+        }
+
+        function drawPlayer() {
+            // Draw player base (rectangle below icon)
+            ctx.fillStyle = '#f1c40f';
+            ctx.fillRect(player.x, player.y + player.height / 2, player.width, player.height / 2);
+
+            // Draw main drone body icon (Font Awesome)
+            ctx.font = `${30 * scaleFactor}px "Font Awesome 6 Free"`; // Scale font size
+            ctx.fillStyle = player.color || '#f1c40f';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            // Translate the context to the center of the Font Awesome icon for rotation
+            ctx.save();
+            ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
+            ctx.fillText('\uf6e9', 0, 0); // Draw at (0,0) as context is already translated
+            ctx.restore(); // Restore context to original state
+
+            // Draw propeller arms and propellers
+            ctx.save();
+            ctx.translate(player.x + player.width / 2, player.y + player.height / 2); // Translate to the center of the player for drawing arms/propellers
+
+            // Propeller arm dimensions (relative to player.width/height)
+            const armLength = player.width * 0.6;
+            const armThickness = 3 * scaleFactor;
+            const armVerticalOffset = player.height * 0.3; // Distance from center for arms
+
+            // Draw propeller arms
+            ctx.fillStyle = '#f1c40f'; // Player's base color
+            ctx.fillRect(-armLength / 2, -armVerticalOffset - armThickness / 2, armLength, armThickness); // Top arm
+            ctx.fillRect(armLength / 2, -armVerticalOffset - armThickness / 2, armLength * 0.001, armThickness); // Right arm
+            ctx.fillRect(-armLength / 2, armVerticalOffset - armThickness / 2, armLength, armThickness); // Bottom arm
+            ctx.fillRect(armLength / 2, armVerticalOffset - armThickness / 2, armLength * 0.001, armThickness); // Right arm
+
+            // Draw propellers (animated)
+            const propellerLength = player.width * 0.3;
+            const propellerThickness = 2 * scaleFactor;
+
+            function drawPlayerPropeller(x, y, rotation) {
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(rotation);
+                ctx.fillStyle = '#cccccc'; // Light gray for propellers
+                // Draw first blade
+                ctx.fillRect(-propellerLength / 2, -propellerThickness / 2, propellerLength, propellerThickness);
+                // Draw second blade (perpendicular to first)
+                ctx.fillRect(-propellerThickness / 2, -propellerLength / 2, propellerThickness, propellerLength);
+                ctx.restore();
+            }
+
+            // Propellers at ends of arms (relative to the translated player center)
+            drawPlayerPropeller(-armLength / 2, -armVerticalOffset, propellerRotation);
+            drawPlayerPropeller(armLength / 2, -armVerticalOffset, propellerRotation);
+            drawPlayerPropeller(-armLength / 2, armVerticalOffset, propellerRotation);
+            drawPlayerPropeller(armLength / 2, armVerticalOffset, propellerRotation);
+            
+            ctx.restore(); // Restore context after drawing arms and propellers
+        }
+
+        function drawNets() {
+            nets.forEach(net => {
+                ctx.save();
+                ctx.translate(net.x + netWidth / 2, net.y + netHeight);
+                // netWidth and netHeight are already scaled
+                const currentNetBaseWidth = netWidth + (player.y - net.y) * NET_EXPANSION_FACTOR * scaleFactor; // Expand factor needs scaling
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(-currentNetBaseWidth / 2, -netHeight);
+                ctx.lineTo(currentNetBaseWidth / 2, -netHeight);
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(52, 152, 219, 0.3)';
+                ctx.fill();
+                ctx.strokeStyle = '#3498db';
+                ctx.lineWidth = 1.5; // Keep fixed for crispness
+                ctx.stroke();
+                ctx.strokeStyle = '#85c1e9';
+                ctx.lineWidth = 1; // Keep fixed
+                ctx.beginPath();
+                let yOffset1 = netHeight * 0.2;
+                let width1 = currentNetBaseWidth * (1 - yOffset1 / netHeight);
+                ctx.moveTo(-width1 / 2, -netHeight + yOffset1);
+                ctx.lineTo(width1 / 2, -netHeight + yOffset1);
+                let yOffset2 = netHeight * 0.5;
+                let width2 = currentNetBaseWidth * (1 - yOffset2 / netHeight);
+                ctx.moveTo(-width2 / 2, -netHeight + yOffset2);
+                ctx.lineTo(width2 / 2, -netHeight + yOffset2);
+                let yOffset3 = netHeight * 0.8;
+                let width3 = currentNetBaseWidth * (1 - yOffset3 / netHeight);
+                ctx.moveTo(-width3 / 2, -netHeight + yOffset3);
+                ctx.lineTo(width3 / 2, -netHeight + yOffset3);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(0, -netHeight);
+                ctx.moveTo(0, 0);
+                ctx.lineTo(-currentNetBaseWidth / 4, -netHeight);
+                ctx.moveTo(0, 0);
+                ctx.lineTo(currentNetBaseWidth / 4, -netHeight);
+                ctx.stroke();
+                ctx.restore();
+            });
+        }
+
+        function drawDrones() {
+            drones.forEach(drone => {
+                ctx.save();
+                ctx.translate(drone.x + drone.width / 2, drone.y + drone.height / 2);
+
+                // Apply hit effect if active
+                if (drone.isHit) {
+                    const hitProgress = (Date.now() - drone.hitTime) / DRONE_HIT_EFFECT_DURATION;
+                    const flashOpacity = Math.sin(hitProgress * Math.PI); // Fades in and out
+                    
+                    // Draw a white flash effect
+                    ctx.globalAlpha = flashOpacity;
+                    ctx.fillStyle = `rgba(255, 255, 255, 0.7)`; // Stronger white flash
+                    ctx.beginPath();
+                    ctx.arc(0, 0, drone.width * 0.8, 0, Math.PI * 2); // Bigger circle flash
+                    ctx.fill();
+                    
+                    // Slightly fade the drone itself during the hit
+                    ctx.globalAlpha = 1 - (flashOpacity * 0.5); 
+                }
+
+                // All derived dimensions from drone.width/height (which are already scaled)
+                const bodyWidth = drone.width * 0.6;
+                const bodyHeight = drone.height * 0.5;
+                const bodyRadius = 4 * scaleFactor; // Scale radius
+                ctx.fillStyle = '#ecf0f1';
+                ctx.beginPath();
+                ctx.roundRect(-bodyWidth / 2, -bodyHeight / 2, bodyWidth, bodyHeight, bodyRadius);
+                ctx.fill();
+                ctx.strokeStyle = '#7f8c8d';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.fillStyle = '#34495e';
+                ctx.beginPath();
+                ctx.moveTo(0, bodyHeight / 2);
+                ctx.lineTo(bodyWidth / 4, bodyHeight / 2 + (5 * scaleFactor)); // Scale offset
+                ctx.lineTo(-bodyWidth / 4, bodyHeight / 2 + (5 * scaleFactor)); // Scale offset
+                ctx.closePath();
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(0, bodyHeight / 2 + (5 * scaleFactor), 4 * scaleFactor, 0, Math.PI * 2); // Scale radius
+                ctx.fillStyle = '#1e2b38';
+                ctx.fill();
+                const armThickness = 4 * scaleFactor; // Scale thickness
+                const armLengthBeyondBody = 10 * scaleFactor; // Scale length
+                ctx.fillStyle = '#bdc3c7';
+                ctx.fillRect(-bodyWidth / 2 - armLengthBeyondBody, -bodyHeight / 2 - armThickness / 2, armLengthBeyondBody, armThickness);
+                ctx.fillRect(bodyWidth / 2, -bodyHeight / 2 - armThickness / 2, armLengthBeyondBody, armThickness);
+                ctx.fillRect(-bodyWidth / 2 - armLengthBeyondBody, bodyHeight / 2 - armThickness / 2, armLengthBeyondBody, armThickness);
+                ctx.fillRect(bodyWidth / 2, bodyHeight / 2 - armThickness / 2, armLengthBeyondBody, armThickness);
+                const propellerRadius = 5 * scaleFactor; // Scale radius
+                const propellerBladeLength = 11 * scaleFactor; // Scale length
+                function drawPropeller(x, y) {
+                    ctx.save();
+                    ctx.translate(x, y);
+                    ctx.beginPath();
+                    ctx.arc(0, 0, propellerRadius * 0.7, 0, Math.PI * 2);
+                    ctx.fillStyle = '#7f8c8d';
+                    ctx.fill();
+                    ctx.lineWidth = 1.5;
+                    ctx.strokeStyle = '#2c3e50';
+                    ctx.beginPath();
+                    ctx.rotate(propellerRotation);
+                    ctx.moveTo(-propellerBladeLength, 0);
+                    ctx.lineTo(propellerBladeLength, 0);
+                    ctx.moveTo(0, -propellerBladeLength);
+                    ctx.lineTo(0, propellerBladeLength);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+                drawPropeller(-bodyWidth / 2 - armLengthBeyondBody / 2, -bodyHeight / 2);
+                drawPropeller(bodyWidth / 2 + armLengthBeyondBody / 2, -bodyHeight / 2);
+                drawPropeller(-bodyWidth / 2 - armLengthBeyondBody / 2, bodyHeight / 2);
+                drawPropeller(bodyWidth / 2 + armLengthBeyondBody / 2, bodyHeight / 2);
+                ctx.restore();
+                ctx.globalAlpha = 1.0; // Reset globalAlpha after drawing drone
+            });
+        }
+
+        function drawTanks() {
+            tanks.forEach(tank => {
+                if (!tank.intact) {
+                    const flameCenterX = tank.x + tank.width / 2;
+                    const flameCenterY = tank.y + tank.height / 2;
+                    const flameDrawingSize = tank.width; // Already scaled
+                    ctx.save();
+                    ctx.globalAlpha = 0.3;
+                    ctx.fillStyle = '#6d7b8d';
+                    ctx.fillRect(tank.x, tank.y, tank.width, tank.height);
+                    ctx.restore();
+                    const flicker = Math.random() * 0.05 + 0.95;
+                    ctx.fillStyle = `rgba(180, 40, 0, ${(0.7 * flicker) * 0.7})`;
+                    ctx.beginPath();
+                    for (let i = 0; i < 6; i++) {
+                        const radius = flameDrawingSize * (0.3 + Math.random() * 0.4);
+                        const xOffset = (Math.random() - 0.5) * flameDrawingSize * 0.8;
+                        const yOffset = (Math.random() - 0.5) * flameDrawingSize * 0.6;
+                        ctx.ellipse(flameCenterX + xOffset, flameCenterY + yOffset, radius, radius * (0.8 + Math.random() * 0.4), Math.random() * Math.PI, 0, Math.PI * 2);
+                    }
+                    ctx.fill();
+                    ctx.fillStyle = `rgba(240, 100, 0, ${(0.85 * flicker) * 0.7})`;
+                    ctx.beginPath();
+                    for (let i = 0; i < 5; i++) {
+                        const radius = flameDrawingSize * (0.2 + Math.random() * 0.3);
+                        const xOffset = (Math.random() - 0.5) * flameDrawingSize * 0.6;
+                        const yOffset = -flameDrawingSize * 0.3 + (Math.random() - 0.5) * flameDrawingSize * 0.4;
+                        ctx.ellipse(flameCenterX + xOffset, flameCenterY + yOffset, radius, radius * (0.8 + Math.random() * 0.4), Math.random() * Math.PI, 0, Math.PI * 2);
+                    }
+                    ctx.fill();
+                    ctx.fillStyle = `rgba(255, 255, 0, ${(0.9 * flicker) * 0.7})`;
+                    ctx.beginPath();
+                    for (let i = 0; i < 4; i++) {
+                        const radius = flameDrawingSize * (0.1 + Math.random() * 0.15);
+                        const xOffset = (Math.random() - 0.5) * flameDrawingSize * 0.4;
+                        const yOffset = -flameDrawingSize * 0.6 + (Math.random() - 0.5) * flameDrawingSize * 0.3;
+                        ctx.ellipse(flameCenterX + xOffset, flameCenterY + yOffset, radius, radius * (0.8 + Math.random() * 0.4), Math.random() * Math.PI, 0, Math.PI * 2);
+                    }
+                    ctx.fill();
+                    const numSmokePuffs = 2;
+                    for (let j = 0; j < numSmokePuffs; j++) {
+                        const smokeSize = tank.width * (0.05 + Math.random() * 0.05); // Derived from tank width
+                        const smokeOpacity = 0.2 + Math.random() * 0.1;
+                        const smokeParticleX = flameCenterX + (Math.random() - 0.5) * (flameDrawingSize * 0.5);
+                        const smokeParticleY = flameCenterY - (flameDrawingSize * 0.1) - (Math.random() * flameDrawingSize * 0.05);
+                        ctx.globalAlpha = smokeOpacity;
+                        ctx.fillStyle = `rgb(44, 62, 80)`;
+                        ctx.beginPath();
+                        ctx.arc(smokeParticleX, smokeParticleY, smokeSize, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.globalAlpha = 1.0;
+                    }
+                }
+            });
+
+            tanks.forEach(tank => {
+                if (tank.intact) {
+                    ctx.fillStyle = '#6d7b8d';
+                    ctx.fillRect(tank.x, tank.y, tank.width, tank.height);
+                    const trackHeight = tank.height; // Already scaled
+                    // trackWidth and trackOffset are already scaled
+                    ctx.fillStyle = '#4a535e';
+                    ctx.fillRect(tank.x - trackWidth - trackOffset, tank.y, trackWidth, trackHeight);
+                    ctx.fillRect(tank.x + tank.width + trackOffset, tank.y, trackWidth, trackHeight);
+                    const numSegments = 5;
+                    const segmentHeight = trackHeight / numSegments; // Derived from scaled tankHeight
+                    ctx.strokeStyle = '#2c3e50';
+                    ctx.lineWidth = 1; // Keep fixed
+                    for (let i = 0; i < numSegments; i++) {
+                        let animatedYOffset;
+                        if (tank.dx > 0) {
+                            animatedYOffset = (i * segmentHeight + trackAnimationOffset) % trackHeight;
+                        } else if (tank.dx < 0) {
+                            animatedYOffset = (i * segmentHeight - trackAnimationOffset) % trackHeight;
+                            if (animatedYOffset < 0) animatedYOffset += trackHeight;
+                        } else {
+                            animatedYOffset = i * segmentHeight;
+                        }
+                        const segmentY = tank.y + animatedYOffset;
+                        ctx.beginPath();
+                        ctx.roundRect(tank.x - trackWidth - trackOffset, segmentY, trackWidth, segmentHeight, 1 * scaleFactor); // Scale radius
+                        ctx.fill();
+                        ctx.stroke();
+                        ctx.beginPath();
+                        ctx.roundRect(tank.x + tank.width + trackOffset, segmentY, trackWidth, segmentHeight, 1 * scaleFactor); // Scale radius
+                        ctx.fill();
+                        ctx.stroke();
+                    }
+                    const turretWidth = tank.width * 0.7; // Derived from scaled tankWidth
+                    const turretHeight = tank.height * 0.5; // Derived from scaled tankHeight
+                    const turretX = tank.x + (tank.width - turretWidth) / 2;
+                    const turretY = tank.y - turretHeight + (5 * scaleFactor); // Scale offset
+                    ctx.fillStyle = '#5c6a7a';
+                    ctx.beginPath();
+                    ctx.roundRect(turretX, turretY, turretWidth, turretHeight, 3 * scaleFactor); // Scale radius
+                    ctx.fill();
+                    const cannonWidth = 8 * scaleFactor; // Scale width
+                    const cannonLength = 40 * scaleFactor; // Scale length
+                    const cannonX = turretX + turretWidth / 2 - cannonWidth / 2;
+                    const cannonY = turretY - cannonLength + (5 * scaleFactor); // Scale offset
+                    ctx.fillStyle = '#4a534e';
+                    ctx.fillRect(cannonX, cannonY, cannonWidth, cannonLength);
+                }
+            });
+        }
+
+        function drawSmokePlumes() {
+            activeSmokePlumes.forEach(plume => {
+                const elapsedTime = Date.now() - plume.startTime;
+                if (elapsedTime < SMOKE_DURATION) {
+                    const smokeProgress = elapsedTime / SMOKE_DURATION;
+                    const currentSmokeSize = SMOKE_INITIAL_SIZE + (SMOKE_MAX_SIZE - SMOKE_INITIAL_SIZE) * smokeProgress; // Sizes are already scaled
+                    const capCurrentRadius = currentSmokeSize * 0.7;
+                    const capYOffset = -smokeProgress * (canvas.height / 3); // Y offset should be proportional to canvas height
+                    const stemWidth = currentSmokeSize * 0.2;
+                    const currentSmokeOpacity = Math.max(0, 1 - smokeProgress * 1.5);
+                    ctx.globalAlpha = currentSmokeOpacity;
+                    ctx.fillStyle = `rgb(44, 62, 80)`;
+                    ctx.beginPath();
+                    ctx.arc(plume.x, plume.y + capYOffset, capCurrentRadius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillRect(plume.x - stemWidth / 2, plume.y, stemWidth, capYOffset);
+                    ctx.globalAlpha = 1.0;
+                }
+            });
+            activeSmokePlumes = activeSmokePlumes.filter(p => {
+                const elapsedTime = Date.now() - p.startTime;
+                return elapsedTime < SMOKE_DURATION;
+            });
+        }
+
+        function drawSparks() {
+            activeSparks.forEach(spark => {
+                const elapsedTime = Date.now() - spark.startTime;
+                if (elapsedTime < SPARK_DURATION) {
+                    const sparkProgress = elapsedTime / SPARK_DURATION;
+                    const currentOpacity = 1.0 - sparkProgress;
+                    ctx.globalAlpha = Math.max(0, currentOpacity);
+                    ctx.fillStyle = spark.color;
+                    ctx.beginPath();
+                    ctx.arc(spark.x + spark.dx * elapsedTime, spark.y + spark.dy * elapsedTime, SPARK_SIZE, 0, Math.PI * 2); // SPARK_SIZE already scaled
+                    ctx.fill();
+                    ctx.globalAlpha = 1.0;
+                }
+            });
+            activeSparks = activeSparks.filter(s => {
+                const elapsedTime = Date.now() - s.startTime;
+                return elapsedTime < SPARK_DURATION;
+            });
+        }
+
+        function drawFlyingTurrets() {
+            activeTurrets.forEach(turret => {
+                const elapsedTime = Date.now() - turret.startTime;
+                if (elapsedTime < TURRET_LIFETIME) {
+                    const progress = elapsedTime / TURRET_LIFETIME;
+                    const currentOpacity = 1.0 - progress;
+                    ctx.save();
+                    ctx.globalAlpha = Math.max(0, currentOpacity);
+                    const currentX = turret.x + turret.dx * elapsedTime;
+                    const timeInSeconds = elapsedTime / 1000;
+                    const currentY = turret.y + turret.initialDy * elapsedTime + 0.5 * TURRET_GRAVITY * timeInSeconds * timeInSeconds;
+                    ctx.translate(currentX, currentY);
+                    ctx.rotate(turret.rotation + turret.rotationSpeed * elapsedTime);
+                    const turretWidth = turret.width; // Already scaled
+                    const turretHeight = turret.height; // Already scaled
+                    const turretXOffset = -turretWidth / 2;
+                    const turretYOffset = -turretHeight / 2;
+                    ctx.fillStyle = '#5c6a7a';
+                    ctx.beginPath();
+                    ctx.roundRect(turretXOffset, turretYOffset, turretWidth, turretHeight, 3 * scaleFactor); // Scale radius
+                    ctx.fill();
+                    const cannonWidth = turret.cannonWidth; // Already scaled
+                    const cannonLength = turret.cannonLength; // Already scaled
+                    const cannonXOffset = turretXOffset + turretWidth / 2 - cannonWidth / 2;
+                    const cannonYOffset = turretYOffset - cannonLength + (5 * scaleFactor); // Scale offset
+                    ctx.fillStyle = '#4a534e';
+                    ctx.fillRect(cannonXOffset, cannonYOffset, cannonWidth, cannonLength);
+                    ctx.restore();
+                    ctx.globalAlpha = 1.0;
+                }
+            });
+            activeTurrets = activeTurrets.filter(t => {
+                const elapsedTime = Date.now() - t.startTime;
+                return elapsedTime < TURRET_LIFETIME;
+            });
+        }
+
+        function drawBrokenTrackPieces() {
+            brokenTrackPieces.forEach(piece => {
+                const elapsedTime = Date.now() - piece.startTime;
+                if (elapsedTime < BROKEN_TRACK_DURATION) {
+                    const progress = elapsedTime / BROKEN_TRACK_DURATION;
+                    const currentOpacity = 1.0 - progress;
+                    ctx.save();
+                    ctx.globalAlpha = Math.max(0, currentOpacity);
+                    const timeInSeconds = elapsedTime / 1000;
+                    ctx.translate(piece.x + piece.dx * elapsedTime, piece.y + piece.dy * elapsedTime + 0.5 * TURRET_GRAVITY * timeInSeconds * timeInSeconds);
+                    ctx.rotate(piece.rotation + piece.rotationSpeed * elapsedTime);
+                    ctx.fillStyle = '#4a535e';
+                    ctx.fillRect(-piece.size / 2, -piece.size / 4, piece.size, piece.size / 2); // piece.size already scaled
+                    ctx.strokeStyle = '#3a424a';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(-piece.size / 2, -piece.size / 4, piece.size, piece.size / 2);
+                    ctx.restore();
+                    ctx.globalAlpha = 1.0;
+                }
+            });
+            brokenTrackPieces = brokenTrackPieces.filter(p => {
+                const elapsedTime = Date.now() - p.startTime;
+                return elapsedTime < BROKEN_TRACK_DURATION;
+            });
+        }
+
+        function drawPowerUps() {
+            powerUps.forEach(pu => {
+                ctx.font = `${powerUpSize}px "Font Awesome 6 Free"`;
+                ctx.fillStyle = '#f39c12'; // Orange color for power-ups
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.save();
+                ctx.translate(pu.x + pu.width / 2, pu.y + pu.height / 2);
+                ctx.fillText('\uf0e7', 0, 0); // Lightning bolt icon
+                ctx.restore();
+            });
+        }
+
+        function update() {
+            if (!gameRunning) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawSmokePlumes();
+            drawSparks();
+            drawBrokenTrackPieces();
+            drawFlyingTurrets();
+            drawPowerUps(); // Draw power-ups before other game elements
+
+            // Player movement
+            player.x += player.dx;
+            if (player.x < 0) {
+                player.x = 0;
+            }
+            if (player.x + player.width > canvas.width) {
+                player.x = canvas.width - player.width;
+            }
+
+            // Net movement and filtering
+            nets = nets.filter(net => {
+                net.y -= netSpeed;
+                return net.y + netHeight > 0;
+            });
+
+            // Update power-up state
+            if (netSpreadActive && Date.now() > netSpreadEndTime) {
+                netSpreadActive = false;
+                displayTempMessage('Net Spread expired!', '#e74c3c');
+            }
+
+            // Difficulty adjustment
+            let currentDroneSpawnInterval = droneSpawnInterval;
+            let currentDroneSpeedMultiplier = 1;
+            if (tanksRemaining === 1) {
+                if (lastTankSurvivedTime === 0) {
+                    lastTankSurvivedTime = Date.now();
+                }
+                const timeSurvivedOnLastTank = Date.now() - lastTankSurvivedTime;
+                const progress = Math.min(1, timeSurvivedOnLastTank / DIFFICULTY_RAMP_UP_DURATION);
+                currentDroneSpeedMultiplier = 1 + (MAX_DRONE_SPEED_INCREASE_FACTOR - 1) * progress;
+                currentDroneSpawnInterval = droneSpawnInterval * (1 - (1 - MIN_DRONE_SPAWN_INTERVAL_FACTOR) * progress);
+            }
+
+            // Drone spawning
+            const currentTime = Date.now();
+            if (currentTime - lastDroneSpawnTime > currentDroneSpawnInterval / (1 + score * DRONE_SPEED_INCREMENT_PER_SCORE)) {
+                spawnDrone(currentDroneSpeedMultiplier);
+                lastDroneSpawnTime = currentTime;
+            }
+
+            // Drone movement and collision detection
+            drones = drones.filter(drone => {
+                // Only move if the drone is not hit
+                if (!drone.isHit) {
+                    drone.y += drone.speed;
+                    drone.x += drone.dx;
+                    if (drone.x < 0 || drone.x + drone.width > canvas.width) {
+                        drone.dx *= -1;
+                        if (drone.x < 0) drone.x = 0;
+                        if (drone.x + drone.width > canvas.width) drone.x = canvas.width - drone.width;
+                    }
+                }
+
+                let droneHitByNet = false;
+                nets = nets.filter(net => {
+                    // netWidth and netHeight are already scaled
+                    const currentNetBaseWidth = netWidth + (player.y - net.y) * NET_EXPANSION_FACTOR * scaleFactor;
+                    const netTipY = net.y + netHeight;
+                    
+                    // Only check collision if drone is not already hit
+                    if (!drone.isHit && 
+                        drone.x < net.x + currentNetBaseWidth / 2 + netWidth / 2 &&
+                        drone.x + drone.width > net.x + netWidth / 2 - currentNetBaseWidth / 2 &&
+                        drone.y < netTipY &&
+                        drone.y + drone.height > netTipY - netHeight
+                    ) {
+                        score++;
+                        updateScoreAndLives();
+                        // Mark drone as hit and stop its movement
+                        drone.isHit = true;
+                        drone.hitTime = Date.now();
+                        drone.speed = 0; // Stop vertical movement
+                        drone.dx = 0; // Stop horizontal movement
+
+                        // Chance to spawn a power-up
+                        if (Math.random() < POWER_UP_SPAWN_CHANCE) {
+                            powerUps.push({
+                                x: drone.x + drone.width / 2 - powerUpSize / 2,
+                                y: drone.y + drone.height / 2 - powerUpSize / 2,
+                                width: powerUpSize,
+                                height: powerUpSize,
+                                type: POWER_UP_TYPES.NET_SPREAD,
+                                collected: false
+                            });
+                        }
+
+                        droneHitByNet = true;  
+                        return false; // Remove the net
+                    }
+                    return true; // Keep the net
+                });
+
+                // Remove drone only after hit effect duration has passed
+                if (drone.isHit && (Date.now() - drone.hitTime > DRONE_HIT_EFFECT_DURATION)) {
+                    return false; // Remove the drone
+                }
+                
+                // Drone-tank collision (only for active, un-hit drones)
+                let hitTank = false;
+                if (!drone.isHit) { // Only check collision if the drone is not already hit by a net
+                    for (let i = 0; i < tanks.length; i++) {
+                        const tank = tanks[i];
+                        if (tank.intact &&
+                            drone.x < tank.x + tank.width &&
+                            drone.x + drone.width > tank.x &&
+                            drone.y < tank.y + tank.height &&
+                            drone.y + drone.height > tank.y
+                        ) {
+                            tank.intact = false;
+                            tanksRemaining--;
+                            updateScoreAndLives();
+                            hitTank = true;
+
+                            // Add explosion effects
+                            activeSmokePlumes.push({
+                                x: tank.x + tank.width / 2,
+                                y: tank.y + tank.height / 2,
+                                startTime: Date.now()
+                            });
+                            const impactX = drone.x + drone.width / 2;
+                            const impactY = drone.y + drone.height / 2;
+                            for (let s = 0; s < SPARK_COUNT; s++) {
+                                const angle = Math.random() * Math.PI * 2;
+                                const speed = Math.random() * SPARK_SPEED_MAX; // SPARK_SPEED_MAX already scaled
+                                activeSparks.push({
+                                    x: impactX,
+                                    y: impactY,
+                                    dx: Math.cos(angle) * speed,
+                                    dy: Math.sin(angle) * speed,
+                                    startTime: Date.now(),
+                                    color: (Math.random() > 0.5) ? 'rgba(255, 255, 150, 1)' : 'rgba(255, 100, 0, 1)'
+                                });
+                            }
+                            // BROKEN_TRACK_COUNT, BROKEN_TRACK_SPEED_MAX, BROKEN_TRACK_ROTATION_SPEED, pieceSize are already scaled
+                            const numBrokenTrackPieces = BROKEN_TRACK_COUNT;
+                            const pieceSize = tank.width * 0.15; // Derived from scaled tank width
+                            for (let p = 0; p < numBrokenTrackPieces; p++) {
+                                const angle = Math.random() * Math.PI * 2;
+                                const speed = Math.random() * BROKEN_TRACK_SPEED_MAX;
+                                brokenTrackPieces.push({
+                                    x: impactX + (Math.random() - 0.5) * tank.width * 0.5,
+                                    y: impactY + (Math.random() - 0.5) * tank.height * 0.5,
+                                    dx: Math.cos(angle) * speed,
+                                    dy: Math.sin(angle) * speed,
+                                    startTime: Date.now(),
+                                    rotation: Math.random() * Math.PI * 2,
+                                    rotationSpeed: (Math.random() - 0.5) * BROKEN_TRACK_ROTATION_SPEED,
+                                    size: pieceSize
+                                });
+                            }
+                            const turretWidth = tank.width * 0.7; // Derived from scaled tankWidth
+                            const turretHeight = tank.height * 0.5; // Derived from scaled tankHeight
+                            const turretX = tank.x + (tank.width - turretWidth) / 2;
+                            const turretY = tank.y - turretHeight + (5 * scaleFactor); // Scale offset
+                            activeTurrets.push({
+                                x: turretX,
+                                y: turretY,
+                                dx: (Math.random() - 0.5) * TURRET_INITIAL_VELOCITY_X_MAX, // Already scaled
+                                initialDy: TURRET_INITIAL_VELOCITY_Y - (Math.random() * 0.5 * scaleFactor), // Scale offset
+                                startTime: Date.now(),
+                                rotation: Math.random() * Math.PI * 2,
+                                rotationSpeed: (Math.random() - 0.5) * TURRET_ROTATION_SPEED,
+                                width: turretWidth,
+                                height: turretHeight,
+                                cannonWidth: 8 * scaleFactor, // Scale
+                                cannonLength: 40 * scaleFactor // Scale
+                            });
+
+                            if (tanksRemaining <= 0) {
+                                endGame();
+                            }
+                            break; // Stop checking for more tank collisions once one is hit
+                        }
+                    }
+                }
+
+                // If drone hit by a tank, remove it immediately. If hit by net, it will be removed after animation.
+                if (hitTank) {
+                    return false; // Remove the drone
+                }
+
+                // Keep the drone if it's not hit and still on screen, or if it's hit but still animating
+                return (drone.isHit && (Date.now() - drone.hitTime <= DRONE_HIT_EFFECT_DURATION)) || (!drone.isHit && drone.y < canvas.height + (20 * scaleFactor)); 
+            });
+
+            // Power-up movement and collision with player
+            powerUps = powerUps.filter(pu => {
+                if (!pu.collected) {
+                    pu.y += powerUpFallSpeed; // powerUpFallSpeed is scaled
+                }
+
+                // Collision with player
+                if (
+                    !pu.collected &&
+                    player.x < pu.x + pu.width &&
+                    player.x + player.width > pu.x &&
+                    player.y < pu.y + pu.height &&
+                    player.y + player.height > pu.y
+                ) {
+                    pu.collected = true;
+                    activatePowerUp(pu.type);
+                    return false; // Remove power-up
+                }
+
+                // Remove if off-screen or collected
+                return !pu.collected && pu.y < canvas.height + powerUpSize; // powerUpSize is scaled
+            });
+
+
+            // Tank independent movement
+            if (gameRunning && tanksRemaining <= NUM_TANKS / 2 && !tanksAreMovingIndependently) {
+                tanksAreMovingIndependently = true;
+                tanks.forEach(tank => {
+                    if (tank.intact) {
+                        // Scale tank movement speed
+                        tank.dx = (Math.random() < 0.5 ? 1 : -1) * (BASE_TANK_MOVE_SPEED_MIN + Math.random() * (BASE_TANK_MOVE_SPEED_MAX - BASE_TANK_MOVE_SPEED_MIN)) * scaleFactor;
+                    }
+                });
+            }
+            if (tanksAreMovingIndependently) {
+                tanks.forEach(tank => {
+                    if (tank.intact) {
+                        tank.x += tank.dx;
+                        // trackWidth and trackOffset are already scaled
+                        if (tank.x - (trackWidth + trackOffset) < 0 || tank.x + tank.width + (trackWidth + trackOffset) > canvas.width) {
+                            tank.dx *= -1;
+                            // Nudge back into bounds if it goes slightly off
+                            if (tank.x - (trackWidth + trackOffset) < 0) tank.x = trackWidth + trackOffset;
+                            if (tank.x + tank.width + (trackWidth + trackOffset) > canvas.width) tank.x = canvas.width - tank.width - (trackWidth + trackOffset);
+                        }
+                    }
+                });
+                trackAnimationOffset = (trackAnimationOffset + trackAnimationSpeed) % tankHeight;
+            }
+
+            // Propeller animation
+            propellerRotation += 0.2; // Angle, does not need scaling
+            if (propellerRotation > Math.PI * 2) {
+                propellerRotation -= Math.PI * 2;
+            }
+
+            // Drawing all elements
+            drawPlayer();
+            drawNets();
+            drawDrones(); // Drones drawn here, including the hit effect
+            drawTanks();
+            animationFrameId = requestAnimationFrame(update);
+        }
+
+        function spawnDrone(speedMultiplier = 1) {
+            const xPosition = Math.random() * (canvas.width - droneWidth); // droneWidth is already scaled
+            // droneSpeedMin, droneSpeedMax, DRONE_SPEED_INCREMENT_PER_SCORE are already scaled/ratios
+            const speed = (droneSpeedMin + Math.random() * (droneSpeedMax - droneSpeedMin) + (score * DRONE_SPEED_INCREMENT_PER_SCORE)) * speedMultiplier;
+            let dx = 0;
+            if (Math.random() < DRONE_HORIZONTAL_MOVE_CHANCE) {
+                dx = (Math.random() < 0.5 ? 1 : -1) * (DRONE_HORIZONTAL_SPEED_MIN_FACTOR + Math.random() * (DRONE_HORIZONTAL_SPEED_MAX_FACTOR - DRONE_HORIZONTAL_SPEED_MIN_FACTOR)) * speedMultiplier * scaleFactor; // Scale horizontal movement
+            }
+            drones.push({
+                x: xPosition,
+                y: -droneHeight, // droneHeight is already scaled
+                width: droneWidth,
+                height: droneHeight,
+                speed: speed,
+                dx: dx,
+                isHit: false, // New property to track hit state
+                hitTime: 0    // New property to store hit timestamp
+            });
+        }
+
+        function shootNet() {
+            // Allow shooting if game is running and less than 4 nets are on screen
+            if (gameRunning) {
+                if (netSpreadActive) {
+                    // Shoot 3 nets in a spread
+                    nets.push({ x: player.x + player.width / 2 - netWidth / 2 - (netWidth * 1.5), y: player.y });
+                    nets.push({ x: player.x + player.width / 2 - netWidth / 2, y: player.y });
+                    nets.push({ x: player.x + player.width / 2 - netWidth / 2 + (netWidth * 1.5), y: player.y });
+                } else if (nets.length < 4) { // Original limit
+                    nets.push({
+                        x: player.x + player.width / 2 - netWidth / 2, // player.width and netWidth are already scaled
+                        y: player.y // player.y is already scaled
+                    });
+                }
+            }
+        }
+
+        function activatePowerUp(type) {
+            if (type === POWER_UP_TYPES.NET_SPREAD) {
+                netSpreadActive = true;
+                netSpreadEndTime = Date.now() + POWER_UP_DURATION;
+                displayTempMessage('Net Spread Activated!', '#2ecc71');
+            }
+        }
+
+        function updateScoreAndLives() {
+            scoreDisplay.textContent = `Score: ${score}`;
+            livesDisplay.textContent = `Tanks: ${tanksRemaining}`;
+        }
+
+        function endGame() {
+            gameRunning = false;
+            cancelAnimationFrame(animationFrameId);
+            finalScoreDisplay.textContent = `You destroyed ${score} drones!`;
+            gameOverMessage.classList.add('active');
+
+            // Set player name input to last saved name, if any
+            const lastPlayerName = localStorage.getItem('lastPlayerName');
+            if (lastPlayerName) {
+                playerNameInput.value = lastPlayerName;
+            }
+            
+            // Re-enable submit button and clear status
+            submitScoreBtn.disabled = false;
+            submitScoreBtn.textContent = 'Submit Score';
+            submitStatus.textContent = '';
+        }
+
+        // --- High Score Functions ---
+
+        async function fetchHighScores() {
+            highScoresLoading.style.display = 'block';
+            highScoresList.innerHTML = ''; // Clear previous scores
+
+            try {
+                const response = await fetch(`${WEB_APP_URL}?action=getScores`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+
+                if (data && data.scores && Array.isArray(data.scores)) {
+                    highScoresList.innerHTML = ''; // Clear for fresh rendering
+                    data.scores.forEach((scoreEntry, index) => {
+                        const listItem = document.createElement('li');
+                        listItem.innerHTML = `
+                            <span class="score-rank">#${index + 1}</span>
+                            <span class="score-name">${escapeHTML(scoreEntry.name)}</span>
+                            <span class="score-value">${scoreEntry.score}</span>
+                        `;
+                        highScoresList.appendChild(listItem);
+                    });
+                } else {
+                    highScoresList.innerHTML = '<li>No high scores yet. Be the first!</li>';
+                }
+            } catch (error) {
+                console.error("Error fetching high scores:", error);
+                highScoresList.innerHTML = '<li>Error loading high scores.</li>';
+            } finally {
+                highScoresLoading.style.display = 'none';
+            }
+        }
+
+        async function submitHighScore() {
+            const playerName = playerNameInput.value.trim();
+            if (!playerName) {
+                submitStatus.textContent = 'Please enter your name!';
+                return;
+            }
+
+            // Save player name to local storage
+            localStorage.setItem('lastPlayerName', playerName);
+
+            submitScoreBtn.disabled = true;
+            submitScoreBtn.textContent = 'Submitting...';
+            submitStatus.textContent = ''; // Clear previous status
+
+            let response; // Declare response here to make it accessible in catch
+            try {
+                response = await fetch(WEB_APP_URL, { // Assign response here
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded', // Google Apps Script expects this for e.parameter
+                    },
+                    body: new URLSearchParams({
+                        action: 'submitScore',
+                        name: playerName,
+                        score: score
+                    }).toString()
+                });
+
+                if (!response.ok) {
+                    // If the response is not OK (e.g., 404, 500), try to read it as text for more info
+                    const errorText = await response.text();  
+                    throw new Error(`HTTP error! Status: ${response.status}. Server response: ${errorText}`);
+                }
+
+                // Attempt to parse as JSON. This is where your original error likely occurred.
+                const result = await response.json();  
+
+                if (result.status === 'success') {
+                    submitStatus.textContent = 'Score submitted successfully!';
+                    submitStatus.style.color = '#2ecc71'; // Green
+                    fetchHighScores(); // Refresh high scores after submission
+                } else {
+                    submitStatus.textContent = `Error: ${result.message || 'Unknown error'}`;
+                    submitStatus.style.color = '#e74c3c'; // Red
+                }
+            } catch (error) {
+                console.error("Error submitting high score:", error);
+                // Provide a more helpful error message in the UI, direct to console for full details
+                submitStatus.textContent = `Submission failed: ${error.message}. Please check the browser console for details.`;
+                submitStatus.style.color = '#e74c3c'; // Red
+            } finally {
+                submitScoreBtn.disabled = false;
+                submitScoreBtn.textContent = 'Submit Score';
+            }
+        }
+
+        // Helper function to escape HTML for display
+        function escapeHTML(str) {
+            const div = document.createElement('div');
+            div.appendChild(document.createTextNode(str));
+            return div.innerHTML;
+        }
+
+        // --- Share Feature Functions ---
+        const GAME_SHARE_URL = 'https://dronedefender.github.io/drone-interceptor/'; // The specific URL to copy
+
+        async function challengeFriend(shareType = 'intro') {
+            let shareText;
+            if (shareType === 'gameOver') {
+                shareText = `I just scored ${score} in Drone Interceptor! Can you beat my score? Play now: ${GAME_SHARE_URL}`;
+            } else {
+                shareText = `Think you can protect the tanks? Challenge your friends in Drone Interceptor! Play now: ${GAME_SHARE_URL}`;
+            }
+
+            copyToClipboard(shareText);
+            displayTempMessage('Game link copied to clipboard! Share it with your friends!', '#f39c12');
+        }
+
+        function copyToClipboard(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed'; // Prevents scrolling to bottom of page
+            textarea.style.opacity = 0;
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                console.log('Text copied to clipboard');
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+            }
+            document.body.removeChild(textarea);
+        }
+
+        // Function to display a temporary message at the bottom of the screen
+        const displayTempMessage = (message, color) => {
+            // Remove any existing temporary messages to avoid stacking
+            const existingTempMessage = document.querySelector('.temp-status-message');
+            if (existingTempMessage) {
+                existingTempMessage.remove();
+            }
+
+            const tempStatusDiv = document.createElement('div');
+            tempStatusDiv.textContent = message;
+            tempStatusDiv.classList.add('temp-status-message'); // Add a class for easy selection
+            tempStatusDiv.style.position = 'fixed';
+            tempStatusDiv.style.bottom = '20px'; // Position from bottom
+            tempStatusDiv.style.left = '50%';
+            tempStatusDiv.style.transform = 'translateX(-50%)';
+            tempStatusDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+            tempStatusDiv.style.color = color;
+            tempStatusDiv.style.padding = '10px 20px';
+            tempStatusDiv.style.borderRadius = '8px';
+            tempStatusDiv.style.zIndex = '1000'; // Ensure it's on top
+            tempStatusDiv.style.opacity = '0';
+            tempStatusDiv.style.transition = 'opacity 0.5s ease-in-out';
+            tempStatusDiv.style.whiteSpace = 'nowrap'; // Prevent text wrap
+            tempStatusDiv.style.boxShadow = '0 2px 10px rgba(0,0,0,0.5)';
+
+            document.body.appendChild(tempStatusDiv);
+
+            // Fade in
+            setTimeout(() => {
+                tempStatusDiv.style.opacity = '1';
+            }, 10);
+
+            // Fade out and remove
+            setTimeout(() => {
+                tempStatusDiv.style.opacity = '0';
+                setTimeout(() => tempStatusDiv.remove(), 500); // Remove after fade out
+            }, 3000); // Display for 3 seconds
+        };
+
+        // --- Countdown Timer ---
+        let countdownInterval;
+
+        function startCountdown() {
+            let count = 3;
+            gameCountdown.classList.add('active');
+            countdownNumber.textContent = count;
+
+            countdownInterval = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    countdownNumber.textContent = count;
+                } else if (count === 0) {
+                    countdownNumber.textContent = 'GO!';
+                } else {
+                    clearInterval(countdownInterval);
+                    gameCountdown.classList.remove('active');
+                    gameRunning = true;
+                    lastDroneSpawnTime = Date.now();
+                    update();
+                }
+            }, 1000); // Update every 1 second
+        }
+
+
+        // --- Event Listeners ---
+
+        // Keyboard controls for desktop
+        document.addEventListener('keydown', (e) => {
+            // Prevent spacebar from triggering game start/restart if an input field is focused
+            if (e.key === ' ' && document.activeElement === playerNameInput) {
+                e.stopPropagation(); // Stop the event from bubbling up to the document listener
+                return; // Exit the function to prevent further processing
+            }
+
+            if (!gameRunning && e.key !== ' ') return; // Only process spacebar if game isn't running for start/restart
+            if (e.key === ' ') {
+                e.preventDefault(); // Prevent scrolling when spacebar is pressed
+            }
+
+            if (e.key === 'ArrowLeft') {
+                player.dx = -player.speed; // player.speed is already scaled
+            } else if (e.key === 'ArrowRight') {
+                player.dx = player.speed; // player.speed is already scaled
+            } else if (e.key === ' ' && gameRunning) {
+                shootNet();
+            } else if (e.key === ' ' && !gameRunning && gameStartMessage.classList.contains('active')) {
+                startGame();
+            } else if (e.key === ' ' && !gameRunning && gameOverMessage.classList.contains('active')) {
+                restartGame();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                player.dx = 0;
+            }
+        });
+
+        // Desktop control buttons (also handle touch for touch-enabled desktops/laptops)
+        if (moveLeftBtn) {
+            moveLeftBtn.addEventListener('mousedown', () => { if (gameRunning) player.dx = -player.speed; });
+            moveLeftBtn.addEventListener('mouseup', () => { if (gameRunning) player.dx = 0; });
+            moveLeftBtn.addEventListener('mouseleave', () => { if (gameRunning) player.dx = 0; }); // Stop on mouse leave
+            moveLeftBtn.addEventListener('touchstart', (e) => { e.preventDefault(); if (gameRunning) player.dx = -player.speed; }, { passive: false });
+            moveLeftBtn.addEventListener('touchend', (e) => { e.preventDefault(); if (gameRunning) player.dx = 0; });
+        }
+
+        if (moveRightBtn) {
+            moveRightBtn.addEventListener('mousedown', () => { if (gameRunning) player.dx = player.speed; });
+            moveRightBtn.addEventListener('mouseup', () => { if (gameRunning) player.dx = 0; });
+            moveRightBtn.addEventListener('mouseleave', () => { if (gameRunning) player.dx = 0; }); // Stop on mouse leave
+            moveRightBtn.addEventListener('touchstart', (e) => { e.preventDefault(); if (gameRunning) player.dx = player.speed; }, { passive: false });
+            moveRightBtn.addEventListener('touchend', (e) => { e.preventDefault(); if (gameRunning) player.dx = 0; });
+        }
+
+        if (shootBtn) {
+            shootBtn.addEventListener('click', () => { if (gameRunning) shootNet(); });
+            shootBtn.addEventListener('touchstart', (e) => { e.preventDefault(); if (gameRunning) shootNet(); }, { passive: false });
+        }
+
+        // Mobile joystick and shoot button logic
+        function handleJoystickStart(e) {
+            if (!gameRunning) return;
+            e.preventDefault(); // Prevent scrolling/zooming
+
+            // Find a new touch that is within the joystick area
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const touch = e.changedTouches[i];
+                const rect = joystickArea.getBoundingClientRect();
+                if (touch.clientX >= rect.left && touch.clientX <= rect.right &&
+                    touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+                    currentJoystickTouchId = touch.identifier;
+                    joystickActive = true;
+
+                    const baseRect = joystickBase.getBoundingClientRect();
+                    joystickCenterX = baseRect.left + baseRect.width / 2;
+                    joystickCenterY = baseRect.top + baseRect.height / 2;
+                    joystickRadius = baseRect.width / 2;
+
+                    // Immediately move the thumb to the initial touch position
+                    updateJoystickThumb(touch.clientX, touch.clientY);
+                    break;
+                }
+            }
+        }
+
+        function handleJoystickMove(e) {
+            if (!gameRunning || !joystickActive || currentJoystickTouchId === null) return;
+            e.preventDefault(); // Prevent scrolling/zooming
+
+            let touch = null;
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === currentJoystickTouchId) {
+                    touch = e.changedTouches[i];
+                    break;
+                }
+            }
+
+            if (touch) {
+                updateJoystickThumb(touch.clientX, touch.clientY);
+            }
+        }
+
+        function handleJoystickEnd(e) {
+            if (!gameRunning || !joystickActive || currentJoystickTouchId === null) return;
+
+            let touchEndedForJoystick = false;
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === currentJoystickTouchId) {
+                    touchEndedForJoystick = true;
+                    break;
+                }
+            }
+
+            if (touchEndedForJoystick) {
+                joystickActive = false;
+                currentJoystickTouchId = null;
+                player.dx = 0;
+                joystickThumb.style.transform = `translate(0, 0)`; // Reset thumb to center
+            }
+        }
+
+        function updateJoystickThumb(touchX, touchY) {
+            let deltaX = touchX - joystickCenterX;
+            let deltaY = touchY - joystickCenterY;
+
+            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+            if (distance > joystickRadius) {
+                const angle = Math.atan2(deltaY, deltaX);
+                deltaX = joystickRadius * Math.cos(angle);
+                deltaY = joystickRadius * Math.sin(angle);
+            }
+
+            joystickThumb.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+            player.dx = (deltaX / joystickRadius) * player.speed; // player.speed is already scaled
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Assign elements to global variables after DOM is loaded
+            joystickArea = document.getElementById('joystick-area');
+            joystickBase = document.getElementById('joystick-base');
+            joystickThumb = document.getElementById('joystick-thumb');
+            mobileShootBtn = document.getElementById('mobileShootBtn');
+
+            if (joystickArea && mobileShootBtn) { // Check if mobile controls exist
+                joystickArea.addEventListener('touchstart', handleJoystickStart, { passive: false });
+                joystickArea.addEventListener('touchmove', handleJoystickMove, { passive: false });
+                joystickArea.addEventListener('touchend', handleJoystickEnd);
+                joystickArea.addEventListener('touchcancel', handleJoystickEnd); // Handle cases where touch is interrupted
+
+                mobileShootBtn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    if (gameRunning) {
+                        shootNet();
+                    }
+                }, { passive: false });
+            }
+
+            // General game state buttons
+            startGameBtn.addEventListener('click', startGame);
+            restartGameBtn.addEventListener('click', restartGame);
+            submitScoreBtn.addEventListener('click', submitHighScore);
+
+            // External links
+            visitSolidUAVsIntroBtn.addEventListener('click', () => {
+                window.open('https://soliduavs.com/', '_blank');
+            });
+
+            visitSolidUAVsGameOverBtn.addEventListener('click', () => {
+                window.open('https://soliduavs.com/', '_blank');
+            });
+
+            // New challenge buttons event listeners
+            challengeFriendIntroBtn.addEventListener('click', () => challengeFriend('intro'));
+            challengeFriendGameOverBtn.addEventListener('click', () => challengeFriend('gameOver'));
+
+            initGame(); // Call initGame after all elements are loaded and assigned
+            fetchHighScores(); // Fetch high scores on page load
+        });
+
+        function startGame() {
+            gameStartMessage.classList.remove('active');
+            gameOverMessage.classList.remove('active');
+            startCountdown(); // Start the countdown instead of game directly
+        }
+
+        function restartGame() {
+            initGame();
+            startCountdown(); // Start countdown for restart too
+        }
+
+        window.addEventListener('resize', initGame); // Re-initialize game on window resize
+    </script>
+</body>
+</html>
